@@ -172,7 +172,6 @@ if train_test_label == 0:# train model
 		for epoch in range(iter_max):
 			print("epoch: "+str(epoch))
 			a_p_p_dir_batch = input_data.a_p_p_dir_next_batch()
-			#print len(a_p_p_dir_batch)
 			a_p_p_indir_batch = input_data.a_p_p_indir_next_batch()
 
 			mini_batch_n = int(len(a_p_p_dir_batch)/batch_s)

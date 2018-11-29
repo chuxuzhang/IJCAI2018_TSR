@@ -159,6 +159,7 @@ class input_data(object):
 				a_p_neg_list_test[int(a_id)].append(int(p_list_ids[i]))
 		a_p_neg_ids_f.close()
 
+		# Recall/Precision Scores
 		evaluate_a_num = 0
 		recall_ave = 0
 		pre_ave = 0
@@ -195,6 +196,7 @@ class input_data(object):
 		print ("recall_ave@top_K: " + str(recall_ave))
 		print ("pre_ave@top_K: " + str(pre_ave))
 
+		# AUC Score
 		AUC_ave = 0
 		for i in range(self.args.author_num):
 			if len(self.a_p_dir_list_test[i]) > 2 and len(self.a_p_dir_list_train[i]) and len(a_p_neg_list_test[i]):
