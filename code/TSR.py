@@ -59,7 +59,7 @@ parser.add_argument('--data_path', type = str, default ='../data/',
 				   help='path to data')
 
 parser.add_argument('--train_test_label', type= int, default = 0,
-				   help='train/test label: 0 - train, 1 - test, 2 - tf graph test')
+				   help='train/test label: 0 - train, 1 - test, 2 - tf graph test/generate negative ids for evaluation')
 
 parser.add_argument('--top_K', type= int, default = 10,
 				   help='length of return list per author in evaluation')
@@ -90,7 +90,7 @@ model_path = args.model_path
 
 train_test_label = args.train_test_label
 
-# data preparation
+# input data and pre-train word embeddings
 input_data = data_generator.input_data(args = args)
 word_embed = input_data.word_embed
 
@@ -151,11 +151,12 @@ if train_test_label == 0 or train_test_label == 1:
 	# 	Loss_2.append(hinge_l)
 
 	# loss formulation
+	# regularization loss
 	t_v = tf.trainable_variables()
 	reg_loss = tf.reduce_sum([tf.nn.l2_loss(v) for v in t_v])
-	# TSR
+	# objective of TSR
 	joint_loss = tf.reduce_sum(Loss_1) + c_reg * reg_loss
-	# TSR+
+	# objective of TSR+
 	#joint_loss = tf.reduce_sum(Loss_1) + c_tradeoff * tf.reduce_sum(Loss_2) + c_reg * reg_loss
 
 	# optimizer
