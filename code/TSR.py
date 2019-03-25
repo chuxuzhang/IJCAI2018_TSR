@@ -6,6 +6,8 @@ import data_generator
 from itertools import *
 import argparse
 import os
+import random
+import numpy as np
 
 # input arguments
 parser = argparse.ArgumentParser(description='demo code of TSR')
@@ -31,7 +33,7 @@ parser.add_argument('--window', type = int, default = 5,
 parser.add_argument('--c_len', type = int, default = 100,
 				   help = 'max len of paper content')
 
-parser.add_argument('--batch_size', type = int, default = 500,
+parser.add_argument('--batch_size', type = int, default = 100,
 				   help = 'batch size of training')
 
 parser.add_argument('--learn_rate', type = float, default = 0.001,
@@ -43,7 +45,7 @@ parser.add_argument('--p_neg_ids_num', type = float, default = 200,
 parser.add_argument('--train_iter_max', type = float, default = 500,
 				   help = 'max number of training iterations')
 
-parser.add_argument('--save_model_freq', type = float, default = 10,
+parser.add_argument('--save_model_freq', type = float, default = 2,
 				   help = 'number of iterations to save model')
 
 parser.add_argument('--c_reg', type = float, default = 0.001,
@@ -52,7 +54,7 @@ parser.add_argument('--c_reg', type = float, default = 0.001,
 parser.add_argument('--margin_d', type = float, default = 0.1,
 				   help = 'margin distance of augmented component')
 
-parser.add_argument('--c_tradeoff', type = float, default = 0.1,
+parser.add_argument('--c_tradeoff', type = float, default = 1.0,
 				   help = 'tradeoff coefficient of augmented component')
 
 parser.add_argument('--data_path', type = str, default ='../data/',
@@ -63,6 +65,9 @@ parser.add_argument('--train_test_label', type= int, default = 0,
 
 parser.add_argument('--top_K', type= int, default = 10,
 				   help='length of return list per author in evaluation')
+
+parser.add_argument('--seed', type= int, default = 1,
+				   help='random seed')
 
 
 args = parser.parse_args()
@@ -88,17 +93,25 @@ save_freq = args.save_model_freq
 data_path = args.data_path
 model_path = args.model_path
 
+random_seed = args.seed
+
 train_test_label = args.train_test_label
 
 # input data and pre-train word embeddings
 input_data = data_generator.input_data(args = args)
 word_embed = input_data.word_embed
 
+# fix seed
+random.seed(random_seed)
+np.random.seed(random_seed)
+tf.set_random_seed(random_seed)
+
 # generate negative paper ids in evaluation
 if train_test_label == 2:
 	input_data.gen_evaluate_neg_ids()
 
-if train_test_label == 0 or train_test_label == 1:
+# TSR model (objective function formualation) begin #
+if train_test_label == 0:
 	# tensor preparation
 	# direct and indirect relation triples
 	a_p_p_dir = tf.placeholder(tf.int32, [None, 3])
@@ -137,38 +150,39 @@ if train_test_label == 0 or train_test_label == 1:
 		Loss_1.append(-tf.log(tf.sigmoid(diff)))
 
 	# loss of indirect relation
-	# Loss_2 = []
-	# for j in range(batch_s):
-	# 	a_e = tf.gather(author_embed, a_p_p_indir[j][0])
-	# 	a_e = tf.reshape(a_e, [1, embed_d])
-	# 	p_e_pos = tf.gather(p_c_indir_e, j*2)
-	# 	p_e_pos = tf.reshape(p_e_pos, [1, embed_d])
-	# 	p_e_neg = tf.gather(p_c_indir_e, j*2 + 1)
-	# 	p_e_neg = tf.reshape(p_e_neg, [1, embed_d])
+	Loss_2 = []
+	for j in range(batch_s):
+		a_e = tf.gather(author_embed, a_p_p_indir[j][0])
+		a_e = tf.reshape(a_e, [1, embed_d])
+		p_e_pos = tf.gather(p_c_indir_e, j*2)
+		p_e_pos = tf.reshape(p_e_pos, [1, embed_d])
+		p_e_neg = tf.gather(p_c_indir_e, j*2 + 1)
+		p_e_neg = tf.reshape(p_e_neg, [1, embed_d])
 
-	# 	# distance margin loss
-	# 	hinge_l = tf.maximum(margin_d + tf.reduce_sum(tf.multiply(a_e, p_e_neg)) - tf.reduce_sum(tf.multiply(a_e, p_e_pos)), tf.zeros([1, 1]))
-	# 	Loss_2.append(hinge_l)
+		# distance margin loss
+		hinge_l = tf.maximum(margin_d + tf.reduce_sum(tf.multiply(a_e, p_e_neg)) - tf.reduce_sum(tf.multiply(a_e, p_e_pos)), tf.zeros([1, 1]))
+		Loss_2.append(hinge_l)
 
 	# loss formulation
 	# regularization loss
 	t_v = tf.trainable_variables()
 	reg_loss = tf.reduce_sum([tf.nn.l2_loss(v) for v in t_v])
 	# objective of TSR
-	joint_loss = tf.reduce_sum(Loss_1) + c_reg * reg_loss
+	#joint_loss = tf.reduce_sum(Loss_1) + c_reg * reg_loss
 	# objective of TSR+
-	#joint_loss = tf.reduce_sum(Loss_1) + c_tradeoff * tf.reduce_sum(Loss_2) + c_reg * reg_loss
+	joint_loss = tf.reduce_sum(Loss_1) + c_tradeoff * tf.reduce_sum(Loss_2) + c_reg * reg_loss
 
 	# optimizer
 	optimizer = tf.train.AdamOptimizer(learning_rate = lr).minimize(joint_loss)
 
-	init = tf.global_variables_initializer()
-	saver = tf.train.Saver(max_to_keep = 3)
+# TSR model (objective function formualation) end #
 
 # train/test 
 if train_test_label == 0:# train model
-	with tf.Session(config = tf.ConfigProto(inter_op_parallelism_threads = 6,
-			intra_op_parallelism_threads = 6)) as sess:
+	init = tf.global_variables_initializer()
+	saver = tf.train.Saver(max_to_keep = 3)
+	with tf.Session(config = tf.ConfigProto(inter_op_parallelism_threads = 4,
+			intra_op_parallelism_threads = 4)) as sess:
 		sess.run(init)
 		for epoch in range(iter_max):
 			print("epoch: "+str(epoch))
@@ -176,9 +190,10 @@ if train_test_label == 0:# train model
 			a_p_p_indir_batch = input_data.a_p_p_indir_next_batch()
 
 			mini_batch_n = int(len(a_p_p_dir_batch)/batch_s)
-
+			#print mini_batch_n
 			# divide each iteration into some mini batches 
 			for i in range(mini_batch_n):
+				#print i
 				a_p_p_dir_mini_batch = a_p_p_dir_batch[i*batch_s:(i+1)*batch_s]
 				p_c_dir_mini_batch = input_data.gen_content_mini_batch(a_p_p_dir_mini_batch)
 				a_p_p_indir_mini_batch = a_p_p_indir_batch[i*batch_s:(i+1)*batch_s]
@@ -218,8 +233,8 @@ if train_test_label == 0:# train model
 				input_data.TSR_evaluate(p_text_deep_f, a_latent_f, top_K)
 
 elif train_test_label == 1:# test model
-	with tf.Session(config = tf.ConfigProto(inter_op_parallelism_threads = 6,
-			intra_op_parallelism_threads = 6)) as sess:
+	with tf.Session(config = tf.ConfigProto(inter_op_parallelism_threads = 4,
+			intra_op_parallelism_threads = 4)) as sess:
 		restore_idx = 10
 		saver.restore(sess, model_path + "TSR" + str(restore_idx) + ".ckpt")
 

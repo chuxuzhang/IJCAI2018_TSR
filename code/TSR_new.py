@@ -7,6 +7,8 @@ from itertools import *
 import argparse
 import os
 import numpy as np
+import random
+import numpy as np
 
 # input arguments
 parser = argparse.ArgumentParser(description='demo code of TSR')
@@ -32,7 +34,7 @@ parser.add_argument('--window', type = int, default = 5,
 parser.add_argument('--c_len', type = int, default = 100,
 				   help = 'max len of paper content')
 
-parser.add_argument('--batch_size', type = int, default = 500,
+parser.add_argument('--batch_size', type = int, default = 100,
 				   help = 'batch size of training')
 
 parser.add_argument('--learn_rate', type = float, default = 0.001,
@@ -65,6 +67,9 @@ parser.add_argument('--train_test_label', type= int, default = 0,
 parser.add_argument('--top_K', type= int, default = 10,
 				   help='length of return list per author in evaluation')
 
+parser.add_argument('--seed', type= int, default = 1,
+				   help='random seed')
+
 
 args = parser.parse_args()
 print(args)
@@ -89,11 +94,18 @@ save_freq = args.save_model_freq
 data_path = args.data_path
 model_path = args.model_path
 
+random_seed = args.seed
+
 train_test_label = args.train_test_label
 
 # input data and pre-train word embeddings
 input_data = data_generator.input_data(args = args)
 word_embed = input_data.word_embed
+
+# fix seed
+random.seed(random_seed)
+np.random.seed(random_seed)
+tf.set_random_seed(random_seed)
 
 # generate negative paper ids in evaluation
 if train_test_label == 2:
